@@ -1,10 +1,11 @@
 import AVFoundation
 import SwiftUI
 import Combine
+import CoreImage
+import ImageIO
 
 class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
     @Published var session = AVCaptureSession()
-    @Published var preview: AVCaptureVideoPreviewLayer?
     @Published var isAuthorized = false
     @Published var error: Error?
     
@@ -61,13 +62,6 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
             
             if session.canAddOutput(output) {
                 session.addOutput(output)
-                
-                // 设置照片输出的方向
-                if let connection = output.connection(with: .video) {
-                    if connection.isVideoOrientationSupported {
-                        connection.videoOrientation = .portrait
-                    }
-                }
             }
             
             session.commitConfiguration()
@@ -75,6 +69,22 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
             DispatchQueue.main.async {
                 self.error = error
             }
+        }
+    }
+    
+    private func getCurrentVideoOrientation() -> AVCaptureVideoOrientation {
+        let deviceOrientation = UIDevice.current.orientation
+        switch deviceOrientation {
+        case .portrait:
+            return .portrait
+        case .portraitUpsideDown:
+            return .portraitUpsideDown
+        case .landscapeLeft:
+            return .landscapeRight
+        case .landscapeRight:
+            return .landscapeLeft
+        default:
+            return .portrait
         }
     }
     
@@ -87,9 +97,10 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
         self.photoCompletion = completion
         
         let settings = AVCapturePhotoSettings()
-        // 确保输出方向正确
+        
+        // 根据当前设备方向设置照片方向
         if let photoOutputConnection = output.connection(with: .video) {
-            photoOutputConnection.videoOrientation = .portrait
+            photoOutputConnection.videoOrientation = getCurrentVideoOrientation()
         }
         
         output.capturePhoto(with: settings, delegate: self)
@@ -104,7 +115,12 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
                 return
             }
             
-            self.photoCompletion?(photo.fileDataRepresentation())
+            guard let imageData = photo.fileDataRepresentation() else {
+                self.photoCompletion?(nil)
+                return
+            }
+            
+            self.photoCompletion?(imageData)
         }
     }
 } 

@@ -12,6 +12,15 @@ struct CameraPreviewView: UIViewRepresentable {
         var videoPreviewLayer: AVCaptureVideoPreviewLayer {
             return layer as! AVCaptureVideoPreviewLayer
         }
+        
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            videoPreviewLayer.frame = bounds
+            // 预览画面始终保持竖直
+            if videoPreviewLayer.connection?.isVideoOrientationSupported == true {
+                videoPreviewLayer.connection?.videoOrientation = .portrait
+            }
+        }
     }
     
     func makeUIView(context: Context) -> VideoPreviewView {
@@ -20,14 +29,18 @@ struct CameraPreviewView: UIViewRepresentable {
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
         
-        DispatchQueue.global(qos: .userInitiated).async {
-            session.startRunning()
+        // 设置预览方向为竖直
+        if view.videoPreviewLayer.connection?.isVideoOrientationSupported == true {
+            view.videoPreviewLayer.connection?.videoOrientation = .portrait
         }
         
         return view
     }
     
     func updateUIView(_ uiView: VideoPreviewView, context: Context) {
-        uiView.videoPreviewLayer.frame = uiView.bounds
+        // 确保预览方向始终为竖直
+        if uiView.videoPreviewLayer.connection?.isVideoOrientationSupported == true {
+            uiView.videoPreviewLayer.connection?.videoOrientation = .portrait
+        }
     }
 } 

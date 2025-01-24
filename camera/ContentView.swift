@@ -22,6 +22,11 @@ struct ContentView: View {
     @State private var showingCapturedImage = false
     @State private var isSaving = false
     
+    // 添加初始化方法
+    init() {
+        _pixelSize = State(initialValue: 20.0)
+    }
+    
     var body: some View {
         ZStack {
             if cameraManager.isAuthorized {
@@ -125,7 +130,7 @@ struct ContentView: View {
     private func takePhoto() {
         cameraManager.takePhoto { imageData in
             guard let imageData = imageData,
-                  let image = UIImage(data: imageData) else { return }
+                  let image = UIImage(data: imageData)?.fixOrientation() else { return }
             
             // 应用像素化效果
             if let pixelatedImage = PixelFilter.applyMosaicEffect(image: image, blockSize: pixelSize) {
