@@ -8,6 +8,7 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
     @Published var session = AVCaptureSession()
     @Published var isAuthorized = false
     @Published var error: Error?
+    @Published var isUsingFrontCamera = false
     
     private var photoCompletion: ((Data?) -> Void)?
     let output = AVCapturePhotoOutput()
@@ -50,7 +51,17 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
             session.inputs.forEach { session.removeInput($0) }
             session.outputs.forEach { session.removeOutput($0) }
             
-            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            // 选择摄像头
+            let deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+            let position: AVCaptureDevice.Position = isUsingFrontCamera ? .front : .back
+            
+            let discoverySession = AVCaptureDevice.DiscoverySession(
+                deviceTypes: deviceTypes,
+                mediaType: .video,
+                position: .unspecified
+            )
+            
+            guard let device = discoverySession.devices.first(where: { $0.position == position }) else {
                 throw NSError(domain: "CameraError", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法找到相机设备"])
             }
             
@@ -69,6 +80,13 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
             DispatchQueue.main.async {
                 self.error = error
             }
+        }
+    }
+    
+    func switchCamera() {
+        isUsingFrontCamera.toggle()
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.setupCamera()
         }
     }
     

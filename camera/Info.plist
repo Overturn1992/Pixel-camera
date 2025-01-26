@@ -2,6 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>LSApplicationQueriesSchemes</key>
+    <array>
+        <string>photos</string>
+        <string>photos-redirect</string>
+        <string>photos-path</string>
+        <string>x-apple-camera</string>
+    </array>
+    <key>UIAppFonts</key>
+    <array>
+        <string>Goldman-Regular.ttf</string>
+    </array>
     <key>NSCameraUsageDescription</key>
     <string>需要访问相机来拍摄像素风格的照片</string>
     <key>NSPhotoLibraryUsageDescription</key>

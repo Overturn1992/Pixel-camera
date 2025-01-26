@@ -7,6 +7,8 @@
 
 import SwiftUI
 import Photos
+import PhotosUI
+import UIKit
 
 // 添加权限声明
 extension Bundle {
@@ -16,72 +18,134 @@ extension Bundle {
 
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
-    @State private var showingSettings = false
-    @State private var pixelSize: Float = 20.0
-    @State private var capturedImage: UIImage?
+    @State private var pixelSize: Float = 8.0
+    @State private var lastPhoto: UIImage?
     @State private var showingCapturedImage = false
     @State private var isSaving = false
-    
-    // 添加初始化方法
-    init() {
-        _pixelSize = State(initialValue: 20.0)
-    }
+    @State private var sliderPosition: CGFloat = 0.5
+    @State private var lastPhotoAsset: PHAsset?
+    @State private var showingImagePicker = false
+    @State private var showingFullImage = false
+    @State private var fullSizeImage: UIImage?
+    @State private var isSquareFormat = true
     
     var body: some View {
         ZStack {
+            Color.black.edgesIgnoringSafeArea(.all)
+            
             if cameraManager.isAuthorized {
-                CameraPreviewView(session: cameraManager.session)
-                    .ignoresSafeArea()
+                CameraPreviewView(session: cameraManager.session, isSquare: isSquareFormat)
                     .edgesIgnoringSafeArea(.all)
+                    .padding(.top, 60)
                 
                 VStack {
+                    // 顶部切换摄像头按钮
+                    HStack {
+                        Button(action: {
+                            cameraManager.switchCamera()
+                        }) {
+                            Image("CameraSwitch")
+                                .resizable()
+                                .frame(width: 32, height: 32)
+                        }
+                        .padding(.top, 20)
+                        .padding(.leading, 20)
+                        Spacer()
+                    }
+                    
                     Spacer()
                     
-                    // 像素大小调节滑块
-                    HStack {
-                        Image(systemName: "square.grid.3x3")
+                    // 进度条控制栏
+                    VStack(spacing: 0) {
+                        // 像素化程度数字
+                        Text("\(Int(pixelSize))")
+                            .font(.custom("Goldman-Regular", size: 24))
                             .foregroundColor(.white)
-                        Slider(value: $pixelSize, in: 5...50)
-                            .accentColor(.white)
-                        Image(systemName: "square.grid.4x3.fill")
-                            .foregroundColor(.white)
-                    }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(10)
-                    .padding()
-                    
-                    // 控制按钮
-                    HStack(spacing: 60) {
-                        Button(action: {
-                            showingSettings.toggle()
-                        }) {
-                            Image(systemName: "gear")
-                                .font(.system(size: 24))
+                            .padding(.bottom, 8)
+                        
+                        HStack {
+                            // 左侧网格图标
+                            Image(systemName: "square.grid.3x3")
+                                .foregroundColor(.white)
+                            
+                            // 进度条
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    // 进度条背景
+                                    Image("ProgressBar")
+                                        .resizable()
+                                        .frame(height: 20)
+                                    
+                                    // 滑块
+                                    Image("ProgressSlider")
+                                        .resizable()
+                                        .frame(width: 20, height: 20)
+                                        .offset(x: sliderPosition * (geometry.size.width - 20))
+                                        .gesture(
+                                            DragGesture()
+                                                .onChanged { value in
+                                                    let newPosition = value.location.x / (geometry.size.width - 20)
+                                                    sliderPosition = min(max(newPosition, 0), 1)
+                                                    pixelSize = Float(sliderPosition * 16) // 0-16的范围
+                                                }
+                                        )
+                                }
+                            }
+                            .frame(height: 20)
+                            
+                            // 右侧网格图标
+                            Image(systemName: "square.grid.3x3.fill")
                                 .foregroundColor(.white)
                         }
+                        .padding(.horizontal, 20)
+                    }
+                    .padding(.bottom, 30)
+                    
+                    // 底部控制栏
+                    HStack(spacing: 80) {
+                        // 左侧最近照片预览
+                        if let lastPhoto = lastPhoto {
+                            Button(action: {
+                                if let asset = lastPhotoAsset {
+                                    openLastPhoto(asset: asset)
+                                }
+                            }) {
+                                Image(uiImage: lastPhoto)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 32, height: 32)
+                                    .clipShape(Rectangle())
+                                    .overlay(
+                                        Rectangle()
+                                            .stroke(Color.white, lineWidth: 2)
+                                    )
+                            }
+                        } else {
+                            Rectangle()
+                                .stroke(Color.white, lineWidth: 2)
+                                .frame(width: 32, height: 32)
+                        }
                         
+                        // 中间拍照按钮
                         Button(action: {
                             takePhoto()
                         }) {
-                            Circle()
-                                .fill(.white)
-                                .frame(width: 70, height: 70)
-                                .overlay(
-                                    Circle()
-                                        .stroke(.black.opacity(0.3), lineWidth: 2)
-                                )
+                            Image("ShutterButton")
+                                .resizable()
+                                .frame(width: 84, height: 84)
                         }
                         
+                        // 右侧比例切换按钮
                         Button(action: {
-                            // 切换前后摄像头
+                            isSquareFormat.toggle()
                         }) {
-                            Image(systemName: "camera.rotate")
-                                .font(.system(size: 24))
-                                .foregroundColor(.white)
+                            Image(isSquareFormat ? "RatioButton1x1" : "RatioButton3x4")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 32, height: isSquareFormat ? 32 : 42.67) // 3:4 比例时高度为 32 * 4/3
                         }
                     }
-                    .padding(.bottom, 30)
+                    .padding(.bottom, 50)
                 }
             } else {
                 VStack {
@@ -97,8 +161,11 @@ struct ContentView: View {
                 }
             }
         }
+        .onAppear {
+            loadLastPhoto()
+        }
         .sheet(isPresented: $showingCapturedImage) {
-            if let image = capturedImage {
+            if let image = lastPhoto {
                 VStack {
                     Image(uiImage: image)
                         .resizable()
@@ -125,6 +192,16 @@ struct ContentView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingImagePicker) {
+            if #available(iOS 14, *) {
+                PHPickerView(isPresented: $showingImagePicker)
+            }
+        }
+        .sheet(isPresented: $showingFullImage) {
+            if let image = fullSizeImage {
+                ImagePreviewView(image: image)
+            }
+        }
     }
     
     private func takePhoto() {
@@ -132,12 +209,34 @@ struct ContentView: View {
             guard let imageData = imageData,
                   let image = UIImage(data: imageData)?.fixOrientation() else { return }
             
-            // 应用像素化效果
-            if let pixelatedImage = PixelFilter.applyMosaicEffect(image: image, blockSize: pixelSize) {
-                DispatchQueue.main.async {
-                    self.capturedImage = pixelatedImage
-                    self.showingCapturedImage = true
-                }
+            if pixelSize == 0 {
+                // 不进行像素化
+                self.lastPhoto = image
+            } else if let pixelatedImage = PixelFilter.applyMosaicEffect(image: image, blockSize: pixelSize) {
+                self.lastPhoto = pixelatedImage
+            }
+            self.showingCapturedImage = true
+        }
+    }
+    
+    private func loadLastPhoto() {
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        fetchOptions.fetchLimit = 1
+        
+        let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        if let lastAsset = fetchResult.firstObject {
+            self.lastPhotoAsset = lastAsset
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            
+            PHImageManager.default().requestImage(
+                for: lastAsset,
+                targetSize: CGSize(width: 64, height: 64),
+                contentMode: .aspectFill,
+                options: options
+            ) { image, _ in
+                self.lastPhoto = image
             }
         }
     }
@@ -158,6 +257,121 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+    }
+    
+    private func openLastPhoto(asset: PHAsset) {
+        // 尝试使用多个可能的 URL Scheme
+        let urlSchemes = ["photos://", "photos-redirect://", "x-apple-camera://"]
+        
+        for scheme in urlSchemes {
+            if let url = URL(string: scheme), UIApplication.shared.canOpenURL(url) {
+                UIApplication.shared.open(url)
+                return
+            }
+        }
+        
+        // 如果所有 URL Scheme 都失败，使用备用方案
+        guard let window = UIApplication.shared.windows.first,
+              let rootViewController = window.rootViewController else { return }
+        PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: rootViewController)
+    }
+}
+
+// 添加一个协调器来处理 PHPicker 的回调
+class PHPickerCoordinator: NSObject, PHPickerViewControllerDelegate {
+    static let shared = PHPickerCoordinator()
+    
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+    }
+}
+
+class ImagePickerDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    static let shared = ImagePickerDelegate()
+    
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        // 不要关闭，让用户查看照片
+        if let asset = info[.phAsset] as? PHAsset {
+            // 用户选择了照片，不做任何操作让用户继续查看
+            return
+        }
+        // 如果没有获取到 asset，才关闭选择器
+        picker.dismiss(animated: true)
+    }
+    
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true)
+    }
+}
+
+@available(iOS 14, *)
+struct PHPickerView: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 1
+        config.filter = .images
+        
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: PHPickerView
+        
+        init(_ parent: PHPickerView) {
+            self.parent = parent
+        }
+        
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            parent.isPresented = false
+        }
+    }
+}
+
+struct ImagePreviewView: View {
+    @Environment(\.presentationMode) var presentationMode
+    let image: UIImage
+    
+    var body: some View {
+        NavigationView {
+            GeometryReader { geometry in
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+            }
+            .navigationBarItems(
+                trailing: Button(action: {
+                    presentationMode.wrappedValue.dismiss()
+                }) {
+                    Text("完成")
+                        .foregroundColor(.white)
+                }
+            )
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .navigationViewStyle(StackNavigationViewStyle())
+        .preferredColorScheme(.dark)
+    }
+}
+
+class PhotoPickerDelegate: NSObject, PHPickerViewControllerDelegate {
+    static let shared = PhotoPickerDelegate()
+    
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        // 不要立即关闭，让用户查看照片
+        if results.isEmpty {
+            picker.dismiss(animated: true)
         }
     }
 }
