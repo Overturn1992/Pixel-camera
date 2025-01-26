@@ -61,7 +61,7 @@ struct ContentView: View {
                         Text("\(Int(pixelSize))")
                             .font(.custom("Goldman-Regular", size: 24))
                             .foregroundColor(.white)
-                            .padding(.bottom, 8)
+                            .frame(height: 30)
                         
                         HStack {
                             // 左侧网格图标
@@ -236,7 +236,7 @@ struct ContentView: View {
             croppedImage.draw(in: CGRect(origin: .zero, size: CGSize(width: cropWidth, height: cropHeight)))
             
             // 添加白色边框
-            let borderWidth: CGFloat = 8 * scale
+            let borderWidth: CGFloat = 16 * scale
             let borderRect = CGRect(x: borderWidth/2, y: borderWidth/2,
                                   width: cropWidth - borderWidth,
                                   height: cropHeight - borderWidth)
