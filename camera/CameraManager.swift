@@ -11,6 +11,7 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate, 
     @Published var isUsingFrontCamera = false
     @Published var currentFrame: CMSampleBuffer?
     @Published var pixelatedImage: CGImage?
+    @Published var pixelSize: Float = 8.0
     
     private var photoCompletion: ((Data?) -> Void)?
     let output = AVCapturePhotoOutput()
@@ -185,20 +186,37 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate, 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         
+        // 根据摄像头类型设置视频方向
+        if isUsingFrontCamera {
+            connection.videoOrientation = .portrait
+        } else {
+            connection.videoOrientation = .landscapeLeft
+        }
+        
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         
-        // 创建像素化滤镜
-        guard let pixellateFilter = CIFilter(name: "CIPixellate") else { return }
-        pixellateFilter.setValue(ciImage, forKey: kCIInputImageKey)
-        pixellateFilter.setValue(8.0, forKey: kCIInputScaleKey) // 调整像素大小
-        
-        // 应用滤镜
-        guard let outputImage = pixellateFilter.outputImage else { return }
-        
-        // 创建CGImage
-        if let cgImage = context.createCGImage(outputImage, from: outputImage.extent) {
-            DispatchQueue.main.async {
-                self.pixelatedImage = cgImage
+        // 根据像素大小决定是否应用像素化效果
+        if pixelSize > 0 {
+            // 创建像素化滤镜
+            guard let pixellateFilter = CIFilter(name: "CIPixellate") else { return }
+            pixellateFilter.setValue(ciImage, forKey: kCIInputImageKey)
+            pixellateFilter.setValue(pixelSize, forKey: kCIInputScaleKey)
+            
+            // 应用滤镜
+            guard let outputImage = pixellateFilter.outputImage else { return }
+            
+            // 创建CGImage
+            if let cgImage = context.createCGImage(outputImage, from: outputImage.extent) {
+                DispatchQueue.main.async {
+                    self.pixelatedImage = cgImage
+                }
+            }
+        } else {
+            // 不应用像素化效果，直接使用原始图像
+            if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
+                DispatchQueue.main.async {
+                    self.pixelatedImage = cgImage
+                }
             }
         }
     }

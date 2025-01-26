@@ -33,10 +33,8 @@ struct ContentView: View {
             
             if cameraManager.isAuthorized {
                 CameraPreviewView(
-                    session: cameraManager.session,
                     cameraManager: cameraManager,
-                    isSquare: isSquareFormat,
-                    pixelSize: pixelSize
+                    isSquare: isSquareFormat
                 )
                     .edgesIgnoringSafeArea(.all)
                 
@@ -89,6 +87,7 @@ struct ContentView: View {
                                                     let newPosition = value.location.x / (geometry.size.width - 20)
                                                     sliderPosition = min(max(newPosition, 0), 1)
                                                     pixelSize = Float(sliderPosition * 16) // 0-16的范围
+                                                    cameraManager.pixelSize = pixelSize
                                                 }
                                         )
                                 }
@@ -250,8 +249,8 @@ struct ContentView: View {
             guard let processedImage = UIGraphicsGetImageFromCurrentImageContext() else { return }
             
             // 应用像素化效果
-            if pixelSize > 0,
-               let pixelatedImage = PixelFilter.applyMosaicEffect(image: processedImage, blockSize: pixelSize) {
+            if cameraManager.pixelSize > 0,
+               let pixelatedImage = PixelFilter.applyMosaicEffect(image: processedImage, blockSize: cameraManager.pixelSize) {
                 self.lastPhoto = pixelatedImage
                 saveImage(pixelatedImage)
             } else {
