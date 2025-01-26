@@ -20,8 +20,6 @@ struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @State private var pixelSize: Float = 8.0
     @State private var lastPhoto: UIImage?
-    @State private var showingCapturedImage = false
-    @State private var isSaving = false
     @State private var sliderPosition: CGFloat = 0.5
     @State private var lastPhotoAsset: PHAsset?
     @State private var showingImagePicker = false
@@ -34,9 +32,13 @@ struct ContentView: View {
             Color.black.edgesIgnoringSafeArea(.all)
             
             if cameraManager.isAuthorized {
-                CameraPreviewView(session: cameraManager.session, isSquare: isSquareFormat)
+                CameraPreviewView(
+                    session: cameraManager.session,
+                    cameraManager: cameraManager,
+                    isSquare: isSquareFormat,
+                    pixelSize: pixelSize
+                )
                     .edgesIgnoringSafeArea(.all)
-                    .padding(.top, 60)
                 
                 VStack {
                     // 顶部切换摄像头按钮
@@ -142,7 +144,7 @@ struct ContentView: View {
                             Image(isSquareFormat ? "RatioButton1x1" : "RatioButton3x4")
                                 .resizable()
                                 .scaledToFit()
-                                .frame(width: 32, height: isSquareFormat ? 32 : 42.67) // 3:4 比例时高度为 32 * 4/3
+                                .frame(width: 32, height: isSquareFormat ? 32 : 42.67)
                         }
                     }
                     .padding(.bottom, 50)
@@ -164,34 +166,6 @@ struct ContentView: View {
         .onAppear {
             loadLastPhoto()
         }
-        .sheet(isPresented: $showingCapturedImage) {
-            if let image = lastPhoto {
-                VStack {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                    
-                    HStack {
-                        Button("重拍") {
-                            showingCapturedImage = false
-                        }
-                        .padding()
-                        
-                        Button(action: {
-                            saveImage(image)
-                        }) {
-                            if isSaving {
-                                ProgressView()
-                            } else {
-                                Text("保存")
-                            }
-                        }
-                        .padding()
-                        .disabled(isSaving)
-                    }
-                }
-            }
-        }
         .sheet(isPresented: $showingImagePicker) {
             if #available(iOS 14, *) {
                 PHPickerView(isPresented: $showingImagePicker)
@@ -205,17 +179,85 @@ struct ContentView: View {
     }
     
     private func takePhoto() {
-        cameraManager.takePhoto { imageData in
+        cameraManager.takePhoto { [self] imageData in
             guard let imageData = imageData,
-                  let image = UIImage(data: imageData)?.fixOrientation() else { return }
+                  let originalImage = UIImage(data: imageData)?.fixOrientation() else { return }
             
-            if pixelSize == 0 {
-                // 不进行像素化
-                self.lastPhoto = image
-            } else if let pixelatedImage = PixelFilter.applyMosaicEffect(image: image, blockSize: pixelSize) {
-                self.lastPhoto = pixelatedImage
+            // 计算预览区域在原图中的对应区域
+            let previewWidth: CGFloat = 300
+            let previewHeight: CGFloat = isSquareFormat ? previewWidth : previewWidth * 4/3
+            
+            // 计算裁剪区域
+            let scale = originalImage.scale
+            let imageSize = originalImage.size
+            
+            // 计算中心点
+            let centerX = imageSize.width / 2
+            let centerY = imageSize.height / 2
+            
+            // 计算裁剪区域的大小（保持原图的宽高比）
+            let cropWidth: CGFloat
+            let cropHeight: CGFloat
+            
+            if isSquareFormat {
+                // 1:1 模式
+                cropWidth = min(imageSize.width, imageSize.height)
+                cropHeight = cropWidth
+            } else {
+                // 3:4 模式
+                if imageSize.width / imageSize.height > 3.0 / 4.0 {
+                    // 图片较宽，以高度为基准
+                    cropHeight = imageSize.height
+                    cropWidth = cropHeight * 3.0 / 4.0
+                } else {
+                    // 图片较高，以宽度为基准
+                    cropWidth = imageSize.width
+                    cropHeight = cropWidth * 4.0 / 3.0
+                }
             }
-            self.showingCapturedImage = true
+            
+            // 计算裁剪区域
+            let cropRect = CGRect(
+                x: centerX - cropWidth / 2,
+                y: centerY - cropHeight / 2,
+                width: cropWidth,
+                height: cropHeight
+            )
+            
+            // 创建裁剪后的图片
+            guard let cgImage = originalImage.cgImage,
+                  let croppedCGImage = cgImage.cropping(to: cropRect) else { return }
+            let croppedImage = UIImage(cgImage: croppedCGImage, scale: scale, orientation: .up)
+            
+            // 创建最终图片（添加边框）
+            UIGraphicsBeginImageContextWithOptions(CGSize(width: cropWidth, height: cropHeight), false, scale)
+            defer { UIGraphicsEndImageContext() }
+            
+            // 绘制裁剪后的图片
+            croppedImage.draw(in: CGRect(origin: .zero, size: CGSize(width: cropWidth, height: cropHeight)))
+            
+            // 添加白色边框
+            let borderWidth: CGFloat = 8 * scale
+            let borderRect = CGRect(x: borderWidth/2, y: borderWidth/2,
+                                  width: cropWidth - borderWidth,
+                                  height: cropHeight - borderWidth)
+            let borderPath = UIBezierPath(rect: borderRect)
+            UIColor.white.setStroke()
+            borderPath.lineWidth = borderWidth
+            borderPath.stroke()
+            
+            // 获取结果图像
+            guard let processedImage = UIGraphicsGetImageFromCurrentImageContext() else { return }
+            
+            // 应用像素化效果
+            if pixelSize > 0,
+               let pixelatedImage = PixelFilter.applyMosaicEffect(image: processedImage, blockSize: pixelSize) {
+                self.lastPhoto = pixelatedImage
+                saveImage(pixelatedImage)
+            } else {
+                self.lastPhoto = processedImage
+                saveImage(processedImage)
+            }
         }
     }
     
@@ -242,18 +284,13 @@ struct ContentView: View {
     }
     
     private func saveImage(_ image: UIImage) {
-        isSaving = true
-        
         PHPhotoLibrary.requestAuthorization { status in
             if status == .authorized {
                 PHPhotoLibrary.shared().performChanges({
                     PHAssetChangeRequest.creationRequestForAsset(from: image)
                 }) { success, error in
-                    DispatchQueue.main.async {
-                        isSaving = false
-                        if success {
-                            showingCapturedImage = false
-                        }
+                    if success {
+                        loadLastPhoto() // 更新最近照片预览
                     }
                 }
             }

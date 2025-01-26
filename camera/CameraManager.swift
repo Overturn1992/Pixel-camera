@@ -4,14 +4,18 @@ import Combine
 import CoreImage
 import ImageIO
 
-class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
+class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
     @Published var session = AVCaptureSession()
     @Published var isAuthorized = false
     @Published var error: Error?
     @Published var isUsingFrontCamera = false
+    @Published var currentFrame: CMSampleBuffer?
+    @Published var pixelatedImage: CGImage?
     
     private var photoCompletion: ((Data?) -> Void)?
     let output = AVCapturePhotoOutput()
+    private let videoOutput = AVCaptureVideoDataOutput()
+    private let context = CIContext()
     
     override init() {
         super.init()
@@ -52,27 +56,62 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
             session.outputs.forEach { session.removeOutput($0) }
             
             // 选择摄像头
-            let deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+            let deviceTypes: [AVCaptureDevice.DeviceType] = [.builtInUltraWideCamera, .builtInWideAngleCamera]
             let position: AVCaptureDevice.Position = isUsingFrontCamera ? .front : .back
             
             let discoverySession = AVCaptureDevice.DiscoverySession(
                 deviceTypes: deviceTypes,
                 mediaType: .video,
-                position: .unspecified
+                position: position
             )
             
-            guard let device = discoverySession.devices.first(where: { $0.position == position }) else {
+            // 获取可用的摄像头
+            let availableDevices = discoverySession.devices
+            
+            // 根据前后置选择合适的摄像头
+            let device: AVCaptureDevice?
+            if isUsingFrontCamera {
+                // 前置摄像头直接使用广角
+                device = availableDevices.first { $0.position == .front }
+            } else {
+                // 后置摄像头优先使用超广角
+                device = availableDevices.first { $0.deviceType == .builtInUltraWideCamera } ??
+                        availableDevices.first { $0.deviceType == .builtInWideAngleCamera }
+            }
+            
+            guard let camera = device else {
                 throw NSError(domain: "CameraError", code: -1, userInfo: [NSLocalizedDescriptionKey: "无法找到相机设备"])
             }
             
-            let input = try AVCaptureDeviceInput(device: device)
+            // 只为后置摄像头设置变焦
+            if !isUsingFrontCamera {
+                try camera.lockForConfiguration()
+                if camera.deviceType == .builtInUltraWideCamera {
+                    camera.videoZoomFactor = 1.0 // 超广角摄像头默认就是0.5倍
+                } else {
+                    // 确保变焦倍数在有效范围内
+                    let minZoom = camera.minAvailableVideoZoomFactor
+                    let targetZoom = max(0.5, minZoom)
+                    camera.videoZoomFactor = targetZoom
+                }
+                camera.unlockForConfiguration()
+            }
+            
+            let input = try AVCaptureDeviceInput(device: camera)
             
             if session.canAddInput(input) {
                 session.addInput(input)
             }
             
+            // 添加照片输出
             if session.canAddOutput(output) {
                 session.addOutput(output)
+            }
+            
+            // 添加视频输出用于实时预览
+            if session.canAddOutput(videoOutput) {
+                videoOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "videoQueue"))
+                session.addOutput(videoOutput)
             }
             
             session.commitConfiguration()
@@ -139,6 +178,28 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate {
             }
             
             self.photoCompletion?(imageData)
+        }
+    }
+    
+    // AVCaptureVideoDataOutputSampleBufferDelegate
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        
+        // 创建像素化滤镜
+        guard let pixellateFilter = CIFilter(name: "CIPixellate") else { return }
+        pixellateFilter.setValue(ciImage, forKey: kCIInputImageKey)
+        pixellateFilter.setValue(8.0, forKey: kCIInputScaleKey) // 调整像素大小
+        
+        // 应用滤镜
+        guard let outputImage = pixellateFilter.outputImage else { return }
+        
+        // 创建CGImage
+        if let cgImage = context.createCGImage(outputImage, from: outputImage.extent) {
+            DispatchQueue.main.async {
+                self.pixelatedImage = cgImage
+            }
         }
     }
 } 
