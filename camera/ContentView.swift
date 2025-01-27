@@ -62,12 +62,9 @@ struct ContentView: View {
                             .font(.custom("Goldman-Regular", size: 24))
                             .foregroundColor(.white)
                             .frame(height: 30)
+                            .padding(.bottom, 10) // 增加底部间距，使数字位置上移
                         
                         HStack {
-                            // 左侧网格图标
-                            Image(systemName: "square.grid.3x3")
-                                .foregroundColor(.white)
-                            
                             // 进度条
                             GeometryReader { geometry in
                                 ZStack(alignment: .leading) {
@@ -93,10 +90,6 @@ struct ContentView: View {
                                 }
                             }
                             .frame(height: 20)
-                            
-                            // 右侧网格图标
-                            Image(systemName: "square.grid.3x3.fill")
-                                .foregroundColor(.white)
                         }
                         .padding(.horizontal, 20)
                     }
