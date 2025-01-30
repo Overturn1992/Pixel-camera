@@ -6,74 +6,87 @@ class PixelFilter {
         guard let cgImage = image.cgImage,
               blockSize > 0 else { return image }
         
-        let context = CIContext()
-        let ciImage = CIImage(cgImage: cgImage)
-        
-        // 1. 首先应用像素化效果
-        guard let pixellateFilter = CIFilter(name: "CIPixellate") else { return image }
-        pixellateFilter.setValue(ciImage, forKey: kCIInputImageKey)
-        pixellateFilter.setValue(max(5.0, blockSize), forKey: kCIInputScaleKey)
-        
-        guard let pixellatedImage = pixellateFilter.outputImage else { return image }
-        
-        // 2. 创建网格图案
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
         let gridSize = CGFloat(max(5.0, blockSize))
-        let width = pixellatedImage.extent.width
-        let height = pixellatedImage.extent.height
+        let borderWidth: CGFloat = 16
         
+        // 创建绘图上下文
         UIGraphicsBeginImageContextWithOptions(CGSize(width: width, height: height), false, 1.0)
         defer { UIGraphicsEndImageContext() }
         
-        guard let graphicsContext = UIGraphicsGetCurrentContext() else { return image }
+        guard let context = UIGraphicsGetCurrentContext() else { return image }
         
-        // 3. 调整坐标系统并绘制像素化的图像
-        graphicsContext.translateBy(x: 0, y: height)
-        graphicsContext.scaleBy(x: 1.0, y: -1.0)
+        // 先绘制原始图像
+        context.translateBy(x: 0, y: height)
+        context.scaleBy(x: 1.0, y: -1.0)
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        context.scaleBy(x: 1.0, y: -1.0)
+        context.translateBy(x: 0, y: -height)
         
-        if let cgPixellatedImage = context.createCGImage(pixellatedImage, from: pixellatedImage.extent) {
-            graphicsContext.draw(cgPixellatedImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-        }
-        
-        // 4. 恢复坐标系统以绘制网格线
-        graphicsContext.scaleBy(x: 1.0, y: -1.0)
-        graphicsContext.translateBy(x: 0, y: -height)
-        
-        // 设置裁剪区域，排除边框
-        let borderWidth: CGFloat = 16
-        let contentRect = CGRect(x: borderWidth, y: borderWidth,
-                               width: width - borderWidth * 2,
-                               height: height - borderWidth * 2)
-        
-        // 计算网格线的起始和结束位置
+        // 计算网格范围
         let startX = ceil(borderWidth / gridSize) * gridSize
         let startY = ceil(borderWidth / gridSize) * gridSize
         let endX = floor((width - borderWidth) / gridSize) * gridSize
         let endY = floor((height - borderWidth) / gridSize) * gridSize
         
-        graphicsContext.saveGState()
-        graphicsContext.addRect(contentRect)
-        graphicsContext.clip()
+        // 获取图像数据
+        guard let imageData = cgImage.dataProvider?.data,
+              let data = CFDataGetBytePtr(imageData) else { return image }
+        
+        let bytesPerPixel = cgImage.bitsPerPixel / 8
+        let bytesPerRow = cgImage.bytesPerRow
+        
+        // 遍历每个网格
+        for y in stride(from: startY, to: endY, by: gridSize) {
+            for x in stride(from: startX, to: endX, by: gridSize) {
+                // 计算网格中心点
+                let centerX = Int(x + gridSize / 2)
+                let centerY = Int(y + gridSize / 2)
+                
+                // 获取中心点的颜色
+                let offset = centerY * bytesPerRow + centerX * bytesPerPixel
+                let blue = CGFloat(data[offset]) / 255.0
+                let green = CGFloat(data[offset + 1]) / 255.0
+                let red = CGFloat(data[offset + 2]) / 255.0
+                let alpha = CGFloat(data[offset + 3]) / 255.0
+                
+                // 使用中心点颜色填充整个网格
+                let color = UIColor(red: red, green: green, blue: blue, alpha: alpha)
+                context.setFillColor(color.cgColor)
+                context.fill(CGRect(x: x, y: y, width: gridSize, height: gridSize))
+            }
+        }
+        
+        // 设置裁剪区域，排除边框
+        let contentRect = CGRect(x: borderWidth, y: borderWidth,
+                               width: width - borderWidth * 2,
+                               height: height - borderWidth * 2)
+        
+        context.saveGState()
+        context.addRect(contentRect)
+        context.clip()
         
         // 绘制网格线
-        graphicsContext.setLineWidth(1.0)
-        graphicsContext.setStrokeColor(UIColor.black.withAlphaComponent(0.3).cgColor)
+        context.setLineWidth(1.0)
+        context.setStrokeColor(UIColor.black.withAlphaComponent(0.3).cgColor)
         
         // 垂直线
         for x in stride(from: startX, through: endX, by: gridSize) {
-            graphicsContext.move(to: CGPoint(x: x, y: startY))
-            graphicsContext.addLine(to: CGPoint(x: x, y: endY))
+            context.move(to: CGPoint(x: x, y: startY))
+            context.addLine(to: CGPoint(x: x, y: endY))
         }
         
         // 水平线
         for y in stride(from: startY, through: endY, by: gridSize) {
-            graphicsContext.move(to: CGPoint(x: startX, y: y))
-            graphicsContext.addLine(to: CGPoint(x: endX, y: y))
+            context.move(to: CGPoint(x: startX, y: y))
+            context.addLine(to: CGPoint(x: endX, y: y))
         }
         
-        graphicsContext.strokePath()
-        graphicsContext.restoreGState()
+        context.strokePath()
+        context.restoreGState()
         
-        // 5. 获取最终图像
+        // 获取最终图像
         guard let finalImage = UIGraphicsGetImageFromCurrentImageContext() else { return image }
         return finalImage
     }
