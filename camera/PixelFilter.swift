@@ -2,7 +2,7 @@ import CoreImage
 import UIKit
 
 class PixelFilter {
-    static func pixelate(image: UIImage, blockSize: Float = 20.0) -> UIImage? {
+    static func pixelate(image: UIImage, blockSize: Float = 20.0, isPreview: Bool = false) -> UIImage? {
         guard let cgImage = image.cgImage,
               blockSize > 0 else { return image }
         
@@ -46,10 +46,19 @@ class PixelFilter {
                 
                 // 获取中心点的颜色
                 let offset = centerY * bytesPerRow + centerX * bytesPerPixel
-                let blue = CGFloat(data[offset]) / 255.0
-                let green = CGFloat(data[offset + 1]) / 255.0
-                let red = CGFloat(data[offset + 2]) / 255.0
-                let alpha = CGFloat(data[offset + 3]) / 255.0
+                
+                // 根据是否是预览模式选择不同的颜色读取顺序
+                let (red, green, blue, alpha) = isPreview ? (
+                    CGFloat(data[offset]) / 255.0,      // RGBA: Red
+                    CGFloat(data[offset + 1]) / 255.0,  // RGBA: Green
+                    CGFloat(data[offset + 2]) / 255.0,  // RGBA: Blue
+                    CGFloat(data[offset + 3]) / 255.0   // RGBA: Alpha
+                ) : (
+                    CGFloat(data[offset + 2]) / 255.0,  // BGRA: Red
+                    CGFloat(data[offset + 1]) / 255.0,  // BGRA: Green
+                    CGFloat(data[offset]) / 255.0,      // BGRA: Blue
+                    CGFloat(data[offset + 3]) / 255.0   // BGRA: Alpha
+                )
                 
                 // 使用中心点颜色填充整个网格
                 let color = UIColor(red: red, green: green, blue: blue, alpha: alpha)

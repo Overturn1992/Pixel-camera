@@ -197,16 +197,14 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate, 
         
         // 根据像素大小决定是否应用像素化效果
         if pixelSize > 0 {
-            // 创建 UIImage
             if let cgImage = context.createCGImage(ciImage, from: ciImage.extent),
-               let uiImage = PixelFilter.pixelate(image: UIImage(cgImage: cgImage), blockSize: pixelSize),
+               let uiImage = PixelFilter.pixelate(image: UIImage(cgImage: cgImage), blockSize: pixelSize, isPreview: true),
                let finalCGImage = uiImage.cgImage {
                 DispatchQueue.main.async {
                     self.pixelatedImage = finalCGImage
                 }
             }
         } else {
-            // 不应用像素化效果，直接使用原始图像
             if let cgImage = context.createCGImage(ciImage, from: ciImage.extent) {
                 DispatchQueue.main.async {
                     self.pixelatedImage = cgImage
