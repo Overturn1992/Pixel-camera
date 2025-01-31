@@ -197,8 +197,10 @@ class CameraManager: NSObject, ObservableObject, AVCapturePhotoCaptureDelegate, 
         
         // 根据像素大小决定是否应用像素化效果
         if pixelSize > 0 {
+            // 将0-16映射到11-27
+            let mappedPixelSize = Float(11) + (pixelSize / 16.0) * Float(16)
             if let cgImage = context.createCGImage(ciImage, from: ciImage.extent),
-               let uiImage = PixelFilter.pixelate(image: UIImage(cgImage: cgImage), blockSize: pixelSize, isPreview: true),
+               let uiImage = PixelFilter.pixelate(image: UIImage(cgImage: cgImage), blockSize: mappedPixelSize, isPreview: true),
                let finalCGImage = uiImage.cgImage {
                 DispatchQueue.main.async {
                     self.pixelatedImage = finalCGImage
