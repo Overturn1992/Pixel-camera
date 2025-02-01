@@ -59,8 +59,13 @@ class VideoPreviewView: UIView {
         let bottomPadding: CGFloat = 200  // 为底部控制栏预留空间
         let availableHeight = bounds.height - bottomPadding
         
-        let width: CGFloat = 300
-        let height: CGFloat = isSquare ? width : width * 4/3
+        let baseWidth: CGFloat = 300
+        let baseHeight: CGFloat = 300  // 基础高度与宽度相同
+        
+        // 3:4模式下在基础高度上下各扩展50
+        let width = baseWidth
+        let height = isSquare ? baseHeight : baseHeight + 100
+        
         let x = (bounds.width - width) / 2
         let y = (availableHeight - height) / 2
         
@@ -89,16 +94,22 @@ class VideoPreviewView: UIView {
             var cropRect: CGRect
             let imageAspectRatio = imageSize.width / imageSize.height
             
-            if imageAspectRatio > targetAspectRatio {
-                // 图片较宽，以高度为基准
-                let cropWidth = imageSize.height * targetAspectRatio
-                let x = (imageSize.width - cropWidth) / 2
-                cropRect = CGRect(x: x, y: 0, width: cropWidth, height: imageSize.height)
+            if isSquare {
+                // 1:1模式：保持当前的裁剪逻辑
+                if imageAspectRatio > 1.0 {
+                    let cropWidth = imageSize.height
+                    let x = (imageSize.width - cropWidth) / 2
+                    cropRect = CGRect(x: x, y: 0, width: cropWidth, height: imageSize.height)
+                } else {
+                    let cropHeight = imageSize.width
+                    let y = (imageSize.height - cropHeight) / 2
+                    cropRect = CGRect(x: 0, y: y, width: imageSize.width, height: cropHeight)
+                }
             } else {
-                // 图片较高，以宽度为基准
-                let cropHeight = imageSize.width / targetAspectRatio
-                let y = (imageSize.height - cropHeight) / 2
-                cropRect = CGRect(x: 0, y: y, width: imageSize.width, height: cropHeight)
+                // 3:4模式：保持完整宽度，调整高度
+                let targetHeight = imageSize.width / targetAspectRatio
+                let y = (imageSize.height - targetHeight) / 2
+                cropRect = CGRect(x: 0, y: y, width: imageSize.width, height: targetHeight)
             }
             
             // 裁剪图像
