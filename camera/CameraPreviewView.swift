@@ -59,14 +59,14 @@ class VideoPreviewView: UIView {
         let bottomPadding: CGFloat = 200  // 为底部控制栏预留空间
         let availableHeight = bounds.height - bottomPadding
         
-        let baseWidth: CGFloat = 300
-        let baseHeight: CGFloat = 300  // 基础高度与宽度相同
+        let baseWidth: CGFloat = 270  // 修改基础宽度为270，保证两侧各有60dp边距
+        let baseHeight: CGFloat = 270  // 基础高度与宽度相同
         
-        // 3:4模式下在基础高度上下各扩展50
+        // 3:4模式下的高度为360
         let width = baseWidth
-        let height = isSquare ? baseHeight : baseHeight + 100
+        let height = isSquare ? baseHeight : 360  // 3:4比例下的高度
         
-        let x = (bounds.width - width) / 2
+        let x = (bounds.width - width) / 2  // 这样每边的距离为60dp
         let y = (availableHeight - height) / 2
         
         // 设置图像视图的frame

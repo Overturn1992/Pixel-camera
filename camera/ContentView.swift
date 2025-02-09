@@ -62,7 +62,7 @@ struct ContentView: View {
                             .font(.custom("Goldman-Regular", size: 24))
                             .foregroundColor(.white)
                             .frame(height: 30)
-                            .padding(.bottom, 10) // 增加底部间距，使数字位置上移
+                            .padding(.bottom, 10)
                         
                         HStack {
                             // 进度条
@@ -71,27 +71,29 @@ struct ContentView: View {
                                     // 进度条背景
                                     Image("ProgressBar")
                                         .resizable()
-                                        .frame(height: 20)
+                                        .frame(width: 270, height: 30)
                                     
                                     // 滑块
                                     Image("ProgressSlider")
                                         .resizable()
                                         .frame(width: 20, height: 20)
-                                        .offset(x: sliderPosition * (geometry.size.width - 20))
+                                        .offset(x: sliderPosition * (270 - 20))
+                                        .frame(width: 30, height: 30)
                                         .gesture(
                                             DragGesture()
                                                 .onChanged { value in
-                                                    let newPosition = value.location.x / (geometry.size.width - 20)
+                                                    let newPosition = value.location.x / (270 - 20)
                                                     sliderPosition = min(max(newPosition, 0), 1)
-                                                    pixelSize = Float(sliderPosition * 16) // 0-16的范围
+                                                    pixelSize = Float(sliderPosition * 16)
                                                     cameraManager.pixelSize = pixelSize
                                                 }
                                         )
                                 }
+                                .frame(width: 270, height: 30)
                             }
-                            .frame(height: 20)
+                            .frame(width: 270, height: 30)
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, (UIScreen.main.bounds.width - 270) / 2)
                     }
                     .padding(.bottom, 30)
                     
