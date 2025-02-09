@@ -49,7 +49,7 @@ struct ContentView: View {
                                 .frame(width: 32, height: 32)
                         }
                         .padding(.top, 20)
-                        .padding(.leading, 20)
+                        .padding(.leading, 30)  // 左边距改为30dp
                         Spacer()
                     }
                     
@@ -59,8 +59,8 @@ struct ContentView: View {
                     VStack(spacing: 0) {
                         // 像素化程度数字
                         Text("\(Int(pixelSize))")
-                            .font(.custom("Goldman-Regular", size: 24))
-                            .foregroundColor(.white)
+                            .font(.custom("Goldman-Regular", size: 20))
+                            .foregroundColor(.white.opacity(0.8))
                             .frame(height: 30)
                             .padding(.bottom, 10)
                         
@@ -71,34 +71,34 @@ struct ContentView: View {
                                     // 进度条背景
                                     Image("ProgressBar")
                                         .resizable()
-                                        .frame(width: 270, height: 30)
+                                        .frame(width: 300, height: 30)
                                     
                                     // 滑块
                                     Image("ProgressSlider")
                                         .resizable()
                                         .frame(width: 20, height: 20)
-                                        .offset(x: sliderPosition * (270 - 20))
+                                        .offset(x: sliderPosition * (300 - 20))
                                         .frame(width: 30, height: 30)
                                         .gesture(
                                             DragGesture()
                                                 .onChanged { value in
-                                                    let newPosition = value.location.x / (270 - 20)
+                                                    let newPosition = value.location.x / (300 - 20)
                                                     sliderPosition = min(max(newPosition, 0), 1)
                                                     pixelSize = Float(sliderPosition * 16)
                                                     cameraManager.pixelSize = pixelSize
                                                 }
                                         )
                                 }
-                                .frame(width: 270, height: 30)
+                                .frame(width: 300, height: 30)
                             }
-                            .frame(width: 270, height: 30)
+                            .frame(width: 300, height: 30)
                         }
-                        .padding(.horizontal, (UIScreen.main.bounds.width - 270) / 2)
+                        .padding(.horizontal, 45)
                     }
                     .padding(.bottom, 30)
                     
                     // 底部控制栏
-                    HStack(spacing: 80) {
+                    HStack {
                         // 左侧最近照片预览
                         if let lastPhoto = lastPhoto {
                             Button(action: {
@@ -113,14 +113,18 @@ struct ContentView: View {
                                     .clipShape(Rectangle())
                                     .overlay(
                                         Rectangle()
-                                            .stroke(Color.white, lineWidth: 2)
+                                            .stroke(Color.white, lineWidth: 3)
                                     )
                             }
+                            .padding(.leading, 60)  // 左边距60dp
                         } else {
                             Rectangle()
-                                .stroke(Color.white, lineWidth: 2)
+                                .stroke(Color.white, lineWidth: 3)
                                 .frame(width: 32, height: 32)
+                                .padding(.leading, 60)  // 左边距60dp
                         }
+                        
+                        Spacer()  // 使用Spacer自动分配空间
                         
                         // 中间拍照按钮
                         Button(action: {
@@ -131,6 +135,8 @@ struct ContentView: View {
                                 .frame(width: 84, height: 84)
                         }
                         
+                        Spacer()  // 使用Spacer自动分配空间
+                        
                         // 右侧比例切换按钮
                         Button(action: {
                             isSquareFormat.toggle()
@@ -140,6 +146,7 @@ struct ContentView: View {
                                 .scaledToFit()
                                 .frame(width: 32, height: isSquareFormat ? 32 : 42.67)
                         }
+                        .padding(.trailing, 60)  // 右边距60dp
                     }
                     .padding(.bottom, 50)
                 }
@@ -178,7 +185,7 @@ struct ContentView: View {
                   let originalImage = UIImage(data: imageData)?.fixOrientation() else { return }
             
             // 计算预览区域在原图中的对应区域
-            let previewWidth: CGFloat = 300
+            let previewWidth: CGFloat = 300  // 修改为与预览界面相同的宽度
             let previewHeight: CGFloat = isSquareFormat ? previewWidth : previewWidth * 4/3
             
             // 计算裁剪区域
