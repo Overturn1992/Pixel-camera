@@ -229,7 +229,7 @@ struct ContentView: View {
             croppedImage.draw(in: CGRect(origin: .zero, size: CGSize(width: cropWidth, height: cropHeight)))
             
             // 添加白色边框
-            let borderWidth: CGFloat = 16 * scale
+            let borderWidth: CGFloat = 30 * scale
             let borderRect = CGRect(x: borderWidth/2, y: borderWidth/2,
                                   width: cropWidth - borderWidth,
                                   height: cropHeight - borderWidth)

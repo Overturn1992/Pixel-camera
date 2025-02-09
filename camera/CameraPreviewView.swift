@@ -33,7 +33,7 @@ class VideoPreviewView: UIView {
         borderLayer = CAShapeLayer()
         borderLayer.strokeColor = UIColor.white.cgColor
         borderLayer.fillColor = nil
-        borderLayer.lineWidth = 8
+        borderLayer.lineWidth = 15
         
         super.init(frame: frame)
         backgroundColor = .black

@@ -9,7 +9,7 @@ class PixelFilter {
         let width = CGFloat(cgImage.width)
         let height = CGFloat(cgImage.height)
         let gridSize = CGFloat(max(5.0, blockSize))
-        let borderWidth: CGFloat = 16
+        let borderWidth: CGFloat = 30  // 与拍照时的边框宽度保持一致
         
         // 创建绘图上下文
         UIGraphicsBeginImageContextWithOptions(CGSize(width: width, height: height), false, 1.0)
@@ -24,7 +24,7 @@ class PixelFilter {
         context.scaleBy(x: 1.0, y: -1.0)
         context.translateBy(x: 0, y: -height)
         
-        // 计算网格范围
+        // 计算网格范围，考虑边框宽度
         let startX = ceil(borderWidth / gridSize) * gridSize
         let startY = ceil(borderWidth / gridSize) * gridSize
         let endX = floor((width - borderWidth) / gridSize) * gridSize
