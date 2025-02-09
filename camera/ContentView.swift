@@ -253,8 +253,8 @@ struct ContentView: View {
             // 绘制处理后的图片
             imageToProcess.draw(in: CGRect(origin: .zero, size: CGSize(width: cropWidth, height: cropHeight)))
             
-            // 添加白色边框
-            let borderWidth: CGFloat = 30 * scale
+            // 添加白色边框 - 保持与预览相同的1:20比例
+            let borderWidth: CGFloat = cropWidth / 20  // 边框宽度为图像宽度的1/20
             let borderRect = CGRect(x: borderWidth/2, y: borderWidth/2,
                                   width: cropWidth - borderWidth,
                                   height: cropHeight - borderWidth)
