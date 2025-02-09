@@ -232,12 +232,26 @@ struct ContentView: View {
                   let croppedCGImage = cgImage.cropping(to: cropRect) else { return }
             let croppedImage = UIImage(cgImage: croppedCGImage, scale: scale, orientation: .up)
             
+            // 先进行像素化处理
+            let imageToProcess: UIImage
+            if cameraManager.pixelSize > 0 {
+                // 将0-16映射到11-27，与预览保持一致
+                let mappedPixelSize = Float(11) + (cameraManager.pixelSize / 16.0) * Float(16)
+                if let pixelatedImage = PixelFilter.applyMosaicEffect(image: croppedImage, blockSize: mappedPixelSize) {
+                    imageToProcess = pixelatedImage
+                } else {
+                    imageToProcess = croppedImage
+                }
+            } else {
+                imageToProcess = croppedImage
+            }
+            
             // 创建最终图片（添加边框）
             UIGraphicsBeginImageContextWithOptions(CGSize(width: cropWidth, height: cropHeight), false, scale)
             defer { UIGraphicsEndImageContext() }
             
-            // 绘制裁剪后的图片
-            croppedImage.draw(in: CGRect(origin: .zero, size: CGSize(width: cropWidth, height: cropHeight)))
+            // 绘制处理后的图片
+            imageToProcess.draw(in: CGRect(origin: .zero, size: CGSize(width: cropWidth, height: cropHeight)))
             
             // 添加白色边框
             let borderWidth: CGFloat = 30 * scale
@@ -249,18 +263,11 @@ struct ContentView: View {
             borderPath.lineWidth = borderWidth
             borderPath.stroke()
             
-            // 获取结果图像
+            // 获取最终图像
             guard let processedImage = UIGraphicsGetImageFromCurrentImageContext() else { return }
             
-            // 应用像素化效果
-            if cameraManager.pixelSize > 0,
-               let pixelatedImage = PixelFilter.applyMosaicEffect(image: processedImage, blockSize: cameraManager.pixelSize) {
-                self.lastPhoto = pixelatedImage
-                saveImage(pixelatedImage)
-            } else {
-                self.lastPhoto = processedImage
-                saveImage(processedImage)
-            }
+            self.lastPhoto = processedImage
+            saveImage(processedImage)
         }
     }
     

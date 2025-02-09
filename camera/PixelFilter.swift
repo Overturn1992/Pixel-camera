@@ -9,7 +9,6 @@ class PixelFilter {
         let width = CGFloat(cgImage.width)
         let height = CGFloat(cgImage.height)
         let gridSize = CGFloat(max(5.0, blockSize))
-        let borderWidth: CGFloat = 30  // 与拍照时的边框宽度保持一致
         
         // 创建绘图上下文
         UIGraphicsBeginImageContextWithOptions(CGSize(width: width, height: height), false, 1.0)
@@ -24,11 +23,11 @@ class PixelFilter {
         context.scaleBy(x: 1.0, y: -1.0)
         context.translateBy(x: 0, y: -height)
         
-        // 计算网格范围，考虑边框宽度
-        let startX = ceil(borderWidth / gridSize) * gridSize
-        let startY = ceil(borderWidth / gridSize) * gridSize
-        let endX = floor((width - borderWidth) / gridSize) * gridSize
-        let endY = floor((height - borderWidth) / gridSize) * gridSize
+        // 计算网格范围，覆盖整个图像
+        let startX: CGFloat = 0
+        let startY: CGFloat = 0
+        let endX = floor(width / gridSize) * gridSize
+        let endY = floor(height / gridSize) * gridSize
         
         // 获取图像数据
         guard let imageData = cgImage.dataProvider?.data,
@@ -67,15 +66,6 @@ class PixelFilter {
             }
         }
         
-        // 设置裁剪区域，排除边框
-        let contentRect = CGRect(x: borderWidth, y: borderWidth,
-                               width: width - borderWidth * 2,
-                               height: height - borderWidth * 2)
-        
-        context.saveGState()
-        context.addRect(contentRect)
-        context.clip()
-        
         // 绘制网格线
         context.setLineWidth(1.0)
         context.setStrokeColor(UIColor.black.withAlphaComponent(0.3).cgColor)
@@ -93,7 +83,6 @@ class PixelFilter {
         }
         
         context.strokePath()
-        context.restoreGState()
         
         // 获取最终图像
         guard let finalImage = UIGraphicsGetImageFromCurrentImageContext() else { return image }
