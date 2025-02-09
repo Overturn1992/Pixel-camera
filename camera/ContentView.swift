@@ -26,6 +26,9 @@ struct ContentView: View {
     @State private var showingFullImage = false
     @State private var fullSizeImage: UIImage?
     @State private var isSquareFormat = true
+    @State private var albumIdentifier: String?
+    
+    let albumName = "像素相机"
     
     var body: some View {
         ZStack {
@@ -164,7 +167,7 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            loadLastPhoto()
+            createAlbumIfNeeded()
         }
         .sheet(isPresented: $showingImagePicker) {
             if #available(iOS 14, *) {
@@ -261,14 +264,84 @@ struct ContentView: View {
         }
     }
     
+    private func createAlbumIfNeeded() {
+        PHPhotoLibrary.requestAuthorization { status in
+            guard status == .authorized else { return }
+            
+            // 检查相册是否已存在
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.predicate = NSPredicate(format: "title = %@", albumName)
+            let collections = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: fetchOptions)
+            
+            if collections.count == 0 {
+                // 创建新相册
+                var placeholder: String?
+                
+                PHPhotoLibrary.shared().performChanges({
+                    let createAlbumRequest = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: albumName)
+                    placeholder = createAlbumRequest.placeholderForCreatedAssetCollection.localIdentifier
+                }) { success, error in
+                    if success {
+                        self.albumIdentifier = placeholder
+                        print("相册创建成功")
+                    }
+                }
+            } else {
+                // 使用现有相册
+                self.albumIdentifier = collections.firstObject?.localIdentifier
+                loadLastPhoto()
+            }
+        }
+    }
+    
+    private func saveImage(_ image: UIImage) {
+        guard let albumIdentifier = albumIdentifier else { return }
+        
+        PHPhotoLibrary.requestAuthorization { status in
+            guard status == .authorized else { return }
+            
+            // 获取目标相册
+            let collections = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumIdentifier], options: nil)
+            guard let album = collections.firstObject else { return }
+            
+            PHPhotoLibrary.shared().performChanges({
+                // 创建照片资源
+                let createAssetRequest = PHAssetChangeRequest.creationRequestForAsset(from: image)
+                
+                // 获取相册变更请求
+                guard let albumChangeRequest = PHAssetCollectionChangeRequest(for: album),
+                      let createdAsset = createAssetRequest.placeholderForCreatedAsset else { return }
+                
+                // 将照片添加到相册
+                let fastEnumeration = NSArray(array: [createdAsset])
+                albumChangeRequest.addAssets(fastEnumeration)
+                
+            }) { success, error in
+                if success {
+                    DispatchQueue.main.async {
+                        loadLastPhoto()
+                    }
+                }
+            }
+        }
+    }
+    
     private func loadLastPhoto() {
+        guard let albumIdentifier = albumIdentifier else { return }
+        
+        // 获取目标相册
+        let collections = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumIdentifier], options: nil)
+        guard let album = collections.firstObject else { return }
+        
+        // 获取相册中的照片
         let fetchOptions = PHFetchOptions()
         fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
         fetchOptions.fetchLimit = 1
         
-        let fetchResult = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-        if let lastAsset = fetchResult.firstObject {
+        let assets = PHAsset.fetchAssets(in: album, options: fetchOptions)
+        if let lastAsset = assets.firstObject {
             self.lastPhotoAsset = lastAsset
+            
             let options = PHImageRequestOptions()
             options.deliveryMode = .highQualityFormat
             
@@ -283,35 +356,23 @@ struct ContentView: View {
         }
     }
     
-    private func saveImage(_ image: UIImage) {
-        PHPhotoLibrary.requestAuthorization { status in
-            if status == .authorized {
-                PHPhotoLibrary.shared().performChanges({
-                    PHAssetChangeRequest.creationRequestForAsset(from: image)
-                }) { success, error in
-                    if success {
-                        loadLastPhoto() // 更新最近照片预览
-                    }
-                }
-            }
-        }
-    }
-    
     private func openLastPhoto(asset: PHAsset) {
-        // 尝试使用多个可能的 URL Scheme
-        let urlSchemes = ["photos://", "photos-redirect://", "x-apple-camera://"]
+        guard let albumIdentifier = albumIdentifier else { return }
         
-        for scheme in urlSchemes {
-            if let url = URL(string: scheme), UIApplication.shared.canOpenURL(url) {
-                UIApplication.shared.open(url)
-                return
-            }
+        // 获取目标相册
+        let collections = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumIdentifier], options: nil)
+        guard let album = collections.firstObject else { return }
+        
+        // 直接打开系统相册
+        guard let url = URL(string: "photos-redirect://") else { return }
+        if UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+        } else {
+            // 如果无法直接打开相册，使用备用方案
+            guard let window = UIApplication.shared.windows.first,
+                  let rootViewController = window.rootViewController else { return }
+            PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: rootViewController)
         }
-        
-        // 如果所有 URL Scheme 都失败，使用备用方案
-        guard let window = UIApplication.shared.windows.first,
-              let rootViewController = window.rootViewController else { return }
-        PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: rootViewController)
     }
 }
 
@@ -327,14 +388,8 @@ class PHPickerCoordinator: NSObject, PHPickerViewControllerDelegate {
 class ImagePickerDelegate: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     static let shared = ImagePickerDelegate()
     
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-        // 不要关闭，让用户查看照片
-        if let asset = info[.phAsset] as? PHAsset {
-            // 用户选择了照片，不做任何操作让用户继续查看
-            return
-        }
-        // 如果没有获取到 asset，才关闭选择器
-        picker.dismiss(animated: true)
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPicking info: [UIImagePickerController.InfoKey : Any]) {
+        // 不关闭选择器，让用户继续浏览相册
     }
     
     func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
