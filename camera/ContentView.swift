@@ -18,9 +18,9 @@ extension Bundle {
 
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
-    @State private var pixelSize: Float = 8.0
+    @State private var pixelSize: Float = 8.0  // 初始像素大小为8.0
+    @State private var sliderPosition: CGFloat = 8.0/16.0  // 确保初始位置对应8.0
     @State private var lastPhoto: UIImage?
-    @State private var sliderPosition: CGFloat = 0.5
     @State private var lastPhotoAsset: PHAsset?
     @State private var showingImagePicker = false
     @State private var showingFullImage = false
@@ -69,22 +69,21 @@ struct ContentView: View {
                             GeometryReader { geometry in
                                 ZStack(alignment: .leading) {
                                     // 进度条背景
-                                    Image("ProgressBar")
-                                        .resizable()
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color.white.opacity(0.1))
                                         .frame(width: 300, height: 30)
                                     
                                     // 滑块
                                     Image("ProgressSlider")
                                         .resizable()
                                         .frame(width: 20, height: 20)
-                                        .offset(x: sliderPosition * (300 - 20))
-                                        .frame(width: 30, height: 30)
+                                        .offset(x: sliderPosition * (300 - 20))  // 减去滑块宽度
                                         .gesture(
                                             DragGesture()
                                                 .onChanged { value in
-                                                    let newPosition = value.location.x / (300 - 20)
+                                                    let newPosition = value.location.x / (300 - 20)  // 减去滑块宽度
                                                     sliderPosition = min(max(newPosition, 0), 1)
-                                                    pixelSize = Float(sliderPosition * 16)
+                                                    pixelSize = Float(sliderPosition * 16)  // 0-16的范围
                                                     cameraManager.pixelSize = pixelSize
                                                 }
                                         )
