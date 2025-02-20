@@ -153,7 +153,7 @@ struct ContentView: View {
                     .padding(.bottom, 50)
                 }
             } else {
-                VStack {
+        VStack {
                     Text("需要相机权限")
                         .font(.title)
                     Button("授权相机") {
